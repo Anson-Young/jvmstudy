@@ -52,7 +52,38 @@
 	}
 4、初始化一个类的子类，会先初始化它的父类，但是不会初始化它实现的接口；
    初始化一个接口，也并不会初始化它继承的父接口。
-   但是两种情况无论是继承父类、父接口还是实现的接口都会被加载
+   但是两种情况无论是继承父类、父接口还是实现的接口都会被加载，
+   如果将实现的接口或继承的父接口的字节码删除，在运行会报ClassNotFoundException
    例：
+   	public class MyTest {
+		public static void main(String[] args) {
+			System.out.println(MyChild.i);
+			// MyParent
+			// a random number
+			System.out.println(AnotherInterface.a);	// a random number
+		}
+	}
+
+	interface MyInterface {
+		Object o = new Object() {
+			{
+				System.out.println("MyInterface");
+			}
+		};	
+	}
+
+	class MyParent {
+		static {
+			System.out.println("MyParent");
+		}
+	}
+
+	class MyChild extends MyParent implements MyInterface {
+		public static final int i = new Random().nextInt(100);
+	}
+
+	interface AnotherInterface extends MyInterface {
+		int a = (int) (Math.random() * 100);
+	}
    
 5、
