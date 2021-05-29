@@ -11,7 +11,7 @@
 	T类中静态变量tint的值在编译期间不确定，只能在运行期间确定，因此在编译期间先用符号引用指向Intf的ival字段，等运行的时候再将符号引用解析为直接引用。
 	
 2、类的主动使用与被动使用。
-	类在被动使用时不会被初始化！
+	类在被动使用时不会被初始化！只有当程序访问的静态变量或静态方法确实在当前类或当前接口中定义时，才可以认为是对类或接口的主动使用
 	例：
 	public class MyTest {
 		public static void main(String[] args) {
@@ -33,7 +33,7 @@
 			System.out.println("child static block");
 		}
 	}
-	原因：Child类为被动使用，虽然是用Child访问的str字段。对于静态字段来说，只有直接定义了该字段的类才会被初始化。
+	原因：Child类为被动使用，虽然是用Child访问的str字段。对于静态字段来说，只有直接定义了该字段的类才会被初始化。(但是Child类会被加载)
 	
 3、可以在编译期确定值的常量称为编译期常量，在编译阶段会存入到调用这个常量的方法所在类的常量池中。本质上，调用类并没有直接引用到定义该常量的类，因此并不会触发定义常量的类的初始化，甚至这个类都没有被加载，可以将定义该常量的类的class文件删除。
 	例：
@@ -52,8 +52,8 @@
 	}
 4、初始化一个类的子类，会先初始化它的父类，但是不会初始化它实现的接口；
    初始化一个接口，也并不会初始化它继承的父接口。
-   但是两种情况无论是继承父类、父接口还是实现的接口都会被加载，
-   如果将实现的接口或继承的父接口的字节码删除，在运行会报ClassNotFoundException
+   但是两种情况无论是继承父类、父接口还是实现的接口都会被加载(注意加载和初始化是两个概念)，
+   如果将实现的接口或继承的父接口的字节码删除，再运行会报NoClassDefFoundError(编译正常，运行时找不到这个类)
    例：
    	public class MyTest {
 		public static void main(String[] args) {
@@ -86,4 +86,34 @@
 		int a = (int) (Math.random() * 100);
 	}
    
-5、
+5、类在加载之后的连接准备阶段会为类的静态变量(final常量除外)赋默认值，在初始化阶段才会按顺序为类的静态变量执行初始化语句。
+   例：
+   	public class MyTest {
+		public static void main(String[] args) {
+			Singleton singleton = Singleton.getInstance();
+			System.out.println(Singleton.a);	// 1
+			System.out.println(Singleton.b);	// 0
+		}
+	}
+
+	class Singleton {
+		public static int a;
+
+		private static Singleton singleton = new Singleton();
+
+		private Singleton() {
+			a++;
+			b++;
+			System.out.println(a);	// 1
+			System.out.println(b);	// 1
+		}
+
+		public static int b = 0;
+
+
+		public static Singleton getInstance() {
+			return singleton;
+		}
+	}
+6、可以通过虚拟机参数-XX:+TraceClassLoading来观察有哪些类被加载
+7、
