@@ -1,0 +1,52 @@
+1、在Java代码中，类型(Class、Interface、Enum)的加载、连接、初始化过程都是在程序运行期间完成的。
+	其中连接又分为验证、准备、解析三个阶段。解析阶段是将符号引用转化为直接引用。
+	符号引用与直接引用，例：
+	public interface Intf {    
+	    public static String str = "abcde";
+	    public static int ival = new Random().nextInt();
+	}
+	public class T {
+	    public static int tint = Intf.ival;
+	}
+	T类中静态变量tint的值在编译期间不确定，只能在运行期间确定，因此在编译期间先用符号引用指向Intf的ival字段，等运行的时候再将符号引用解析为直接引用。
+	
+2、类的主动使用与被动使用。
+	类在被动使用时不会被初始化！
+	例：
+	public class MyTest {
+		public static void main(String[] args) {
+			System.out.println(Child.str);	// parent static block
+																// hello world
+		}
+	}
+	
+	class Parent {
+		public static String str = "hello world";
+		
+		static {
+			System.out.println("parent static block");
+		}
+	}
+	
+	class Child extends Parent {
+		static {
+			System.out.println("child static block");
+		}
+	}
+	原因：Child类为被动使用，虽然是用Child访问的str字段。对于静态字段来说，只有直接定义了该字段的类才会被初始化。
+	
+3、常量在编译阶段会存入到调用这个常量的方法所在类的常量池中，本质上，调用类并没有直接引用到定义该常量的类，因此	并不会触发定义常量的类的初始化，甚至可以将定义该常量的类的class文件删除。
+	例：
+	public class MyTest {
+		public static void main(String[] args) {
+			System.out.println(MyParent.str);	// hello world(MyParent里的静态代码块不会被执行)
+		}
+	}
+	
+	class MyParent {
+		public static final String str = "hello world";
+		
+		static {
+			System.out.println("MyParent static block");
+		}
+	}
