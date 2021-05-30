@@ -1,6 +1,7 @@
 1、在Java代码中，类型(Class、Interface、Enum)的加载、连接、初始化过程都是在程序运行期间完成的。
 	其中连接又分为验证、准备、解析三个阶段。解析阶段是将符号引用转化为直接引用。
-	符号引用与直接引用，例：
+	符号引用与直接引用
+	例1：
 	public interface Intf {    
 	    public static String str = "abcde";
 	    public static int ival = new Random().nextInt();
@@ -9,6 +10,11 @@
 	    public static int tint = Intf.ival;
 	}
 	T类中静态变量tint的值在编译期间不确定，只能在运行期间确定，因此在编译期间先用符号引用指向Intf的ival字段，等运行的时候再将符号引用解析为直接引用。
+	例2：
+	public static void main(String[] args) {
+		new ArrayList<>();
+	}
+	ArrayList在类生命周期的解析阶段之前，这就只是个符号，即符号引用。在解析过程中，JVM会去找ArrayList是否被加载，如果未加载会先加载ArrayList，然后返回ArrayList的引用，这就是直接引用。
 	
 2、类的主动使用与被动使用。
 	类在被动使用时不会被初始化！只有当程序访问的静态变量或静态方法确实在当前类或当前接口中定义时，才可以认为是对类或接口的主动使用
@@ -116,4 +122,11 @@
 		}
 	}
 6、可以通过虚拟机参数-XX:+TraceClassLoading来观察有哪些类被加载
-7、
+7、加载只是类加载的其中一个阶段，类加载的全过程包括加载、连接(验证、准备、解析)、初始化这几个阶段。
+   加载阶段最终会在虚拟机内存中生成代表这个类的Class对象。
+8、ClassNotFoundException与NoClassDefFoundError区别：
+   ClassNotFoundException间接继承自Exception，为受检异常，程序当中可以捕获，抛出此异常的常见场景是
+   Class.forName("xxx.yyy.zzz.className");在运行期找不到需要加载的类，其本质是在类加载的加载阶段找不到此类而无法生成对应的Class对象。
+   NoClassDefFoundError继承自LinkageError，通过名字可以看出是在类加载的连接阶段发生的错误。具体发生在连接阶段所包含的3个阶段中的最后一个阶段——解析阶段，如果在解析阶段找不到相应的类就会报NoClassDefFoundError。例如上面4的叙述内容，程序正常编译后删除所实现或继承接口的class文件，然后在运行时先进入子类加载的加载阶段，在加载的过程中进行解析，解析过程中要将所实现或继承接口的符号引用替换为直接引用，在替换时发现找不到所实现或继承的接口，就会报NoClassDefFoundError。注意：加载阶段与连接阶段是按照先后顺序开始，并不是按照先后顺序进行或完成，这两个阶段是交叉进行的，加载阶段尚未完成，连接阶段可能已经开始。
+   参考链接：https://blog.csdn.net/qq_36781505/article/details/89053304
+9、
