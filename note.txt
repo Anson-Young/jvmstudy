@@ -131,4 +131,6 @@
    参考链接：https://blog.csdn.net/qq_36781505/article/details/89053304
 9、使用java.lang.reflect包的方法对类进行反射调用的时候，如果类没有进行初始化，则需要先触发其初始化。例如Class.forName("xxx.yyy.zzz.className");
    而调用ClassLoader类的loadClass方法加载一个类，并不是对类的主动使用，不会导致类的初始化
-10、
+10、对于数组实例来说，其类型是由JVM在运行期动态生成，表示为[Lxxx.yyy.zzz.className这种形式。动态生成的类型，其父类型是Object。
+11、虽然说数组类的Class对象不是由类加载器创建出来的，但是通过Class.getClassLoader()返回的类加载器与其包含的元素类型的类加载器是一样的(对于元素类型是引用类型的数组)
+12、
