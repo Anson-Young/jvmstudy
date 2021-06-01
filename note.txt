@@ -129,4 +129,6 @@
    Class.forName("xxx.yyy.zzz.className");在运行期找不到需要加载的类，其本质是在类加载的加载阶段找不到此类而无法生成对应的Class对象。
    NoClassDefFoundError继承自LinkageError，通过名字可以看出是在类加载的连接阶段发生的错误。具体发生在连接阶段所包含的3个阶段中的最后一个阶段——解析阶段，如果在解析阶段找不到相应的类就会报NoClassDefFoundError。例如上面4的叙述内容，程序正常编译后删除所实现或继承接口的class文件，然后在运行时先进入子类加载的加载阶段，在加载的过程中进行解析，解析过程中要将所实现或继承接口的符号引用替换为直接引用，在替换时发现找不到所实现或继承的接口，就会报NoClassDefFoundError。注意：加载阶段与连接阶段是按照先后顺序开始，并不是按照先后顺序进行或完成，这两个阶段是交叉进行的，加载阶段尚未完成，连接阶段可能已经开始。
    参考链接：https://blog.csdn.net/qq_36781505/article/details/89053304
-9、
+9、使用java.lang.reflect包的方法对类进行反射调用的时候，如果类没有进行初始化，则需要先触发其初始化。例如Class.forName("xxx.yyy.zzz.className");
+   而调用ClassLoader类的loadClass方法加载一个类，并不是对类的主动使用，不会导致类的初始化
+10、
