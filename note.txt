@@ -126,11 +126,93 @@
    加载阶段最终会在虚拟机内存中生成代表这个类的Class对象。
 8、ClassNotFoundException与NoClassDefFoundError区别：
    ClassNotFoundException间接继承自Exception，为受检异常，程序当中可以捕获，抛出此异常的常见场景是
-   Class.forName("xxx.yyy.zzz.className");在运行期找不到需要加载的类，其本质是在类加载的加载阶段找不到此类而无法生成对应的Class对象。
+   Class.forName("xxx.yyy.zzz.className");在运行期找不到需要加载的类，也就是在外围类初始化完毕后运行过程中发生的异常。
    NoClassDefFoundError继承自LinkageError，通过名字可以看出是在类加载的连接阶段发生的错误。具体发生在连接阶段所包含的3个阶段中的最后一个阶段——解析阶段，如果在解析阶段找不到相应的类就会报NoClassDefFoundError。例如上面4的叙述内容，程序正常编译后删除所实现或继承接口的class文件，然后在运行时先进入子类加载的加载阶段，在加载的过程中进行解析，解析过程中要将所实现或继承接口的符号引用替换为直接引用，在替换时发现找不到所实现或继承的接口，就会报NoClassDefFoundError。注意：加载阶段与连接阶段是按照先后顺序开始，并不是按照先后顺序进行或完成，这两个阶段是交叉进行的，加载阶段尚未完成，连接阶段可能已经开始。
+   另外，NoClassDefFoundError往往是在解析的时候发现需要加载其他类，而这个类又不存在的时候发生的，亦即在将符号引用转化为直接引用时发生的。
+   注意：符号引用为“引用”，是一个指向具体值的指针，如果类中有诸如private SomeClass someClass;的代码，程序在编译时不会将其转化为符号引用，
+   因为这仅仅是一个声明，并没有将其赋值，也就不存在指向具体值的指针，这种情况在类的加载、连接的过程中并不会解析SomeClass，也就不会加载它，
+   因此就不会报告NoClassDefFoundError错误。
+   还有一种情况是在类的方法中存在SomeClass的引用，比如new SomeClass();，外围类在编译的时候会将其转化为符号引用，在连接的时候也会将其转化为
+   直接引用，如果SomeClass的class文件不存在，虚拟机在解析的时候不会报告NoClassDefFoundError，直到SomeClass所在的方法被调用，这种情况称之为
+   Lazy implementation of JVM，这是由JVM的具体实现所决定的，不同的JVM可能有不同的实现，即其他实现可能在解析阶段就报NoClassDefFoundError。
    参考链接：https://blog.csdn.net/qq_36781505/article/details/89053304
 9、使用java.lang.reflect包的方法对类进行反射调用的时候，如果类没有进行初始化，则需要先触发其初始化。例如Class.forName("xxx.yyy.zzz.className");
    而调用ClassLoader类的loadClass方法加载一个类，并不是对类的主动使用，不会导致类的初始化
 10、对于数组实例来说，其类型是由JVM在运行期动态生成，表示为[Lxxx.yyy.zzz.className这种形式。动态生成的类型，其父类型是Object。
 11、虽然说数组类的Class对象不是由类加载器创建出来的，但是通过Class.getClassLoader()返回的类加载器与其包含的元素类型的类加载器是一样的(对于元素类型是引用类型的数组)
-12、
+12、类加载器的双亲委托机制：
+    (1)、自底向上检查类是否已经加载；
+    (2)、自顶向下尝试加载类
+13、类加载器的命名空间：
+    (1)、每个类加载器都有自己的命名空间，命名空间由该加载器及所有父加载器所加载的类组成；
+    (2)、在同一个命名空间中，不会出现类的完整名字（包括类的包名）相同的两个类；
+    (3)、在不同的命名空间中，有可能会出现类的完整名字（包括类的包名）相同的两个类
+14、自定义类加载器应该继承自ClassLoader类，并实现ClassLoader的findClass方法。
+    加载类的入口方法是ClassLoader类的loadClass(String name)，参数name往往是类的全限定名，
+    (1)、如果类已经被加载，则直接返回类的Class对象；
+    (2)、自定义类加载器委托父加载器加载类，如果加载成功，返回类的Class对象；
+    (3)、自定义类加载器调用自己实现的findClass方法加载类的字节码生成Class对象。
+    例：
+    	public class MyClassLoader extends ClassLoader {
+		private String path;
+
+		public void setPath(String path) {
+			this.path = path;
+		}
+
+		public MyClassLoader() {}
+		public MyClassLoader(ClassLoader parent) {
+			super(parent);
+		}
+
+		@Override
+		// 如果AppClassLoader能加载到className所指定的class，则此方法不执行
+		// 将className所指定的class字节码文件移至path路径下，则会执行此方法
+		protected Class<?> findClass(String className) throws ClassNotFoundException {
+			System.out.println("findClass invoked...");
+			System.out.println("loading class: " + className);
+			byte[] data = loadClassData(className);
+			return super.defineClass(className, data, 0, data.length);
+		}
+
+		private byte[] loadClassData(String className) {
+			File file = new File(this.path + className.replace(".", "/") + ".class");
+			byte[] b = new byte[(int) file.length()];
+			FileInputStream inputStream = null;
+
+
+			try {
+				inputStream = new FileInputStream(file);
+				inputStream.read(b);
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				if (inputStream != null) {
+					try {
+						inputStream.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+			return b;
+		}
+
+		public static void main(String[] args) throws Exception {
+			MyClassLoader classLoader1 = new MyClassLoader();	// 默认以系统类加载器AppClassLoader为父加载器
+			classLoader1.setPath("E:/others/test/out/production/demo/");	// 如果AppClassLoader能加载到类，则此设置无效
+			Class<?> clazz1 = classLoader1.loadClass("com.yc.demo.classloader.Dummy");
+			System.out.println("class: " + clazz1.hashCode());
+			System.out.println("object: " + clazz1.newInstance());
+			System.out.println();
+  			MyClassLoader classLoader2 = new MyClassLoader();
+        		classLoader2.setPath("E:/others/test/out/production/demo/");
+        		Class<?> clazz2 = classLoader2.loadClass("com.yc.demo.classloader.Dummy");
+			// 若classLoader1和classLoader2均是委托的父加载器加载Dummy，则和上面输出的hashcode值一样
+			// 若是自定义类加载器加载Dummy，则输出的hashcode值不同，因为两个类加载器命名空间不同，加载出来的Class对象不同
+        		System.out.println("class: " + clazz2.hashCode());
+        		System.out.println("object: " + clazz2.newInstance());
+		}
+	}
+15、
+
