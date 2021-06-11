@@ -214,5 +214,45 @@
         		System.out.println("object: " + clazz2.newInstance());
 		}
 	}
-15、
+15、若有一个类加载器能够成功加载Test类，那么这个类加载器被称为定义类加载器，所有能成功返回Class对象引用的类加载器（包括定义类加载器）都被
+    称为初始类加载器。（了解）
+16、每个类都会尝试使用自己的类加载器去加载依赖的类。
+    例：
+	public class ClassLoaderTest {
+		public static void main(String[] args) throws Exception {
+			MyClassLoader classLoader = new MyClassLoader();
+			classLoader.setPath("E:/others/test/out/production/demo/");
+			Class<?> clazz = classLoader.loadClass("com.yc.demo.classloader.MySample");
+			clazz.newInstance();
+		}
+	}
+
+	class MySample {
+		public MySample() {
+			System.out.println("MySample is loaded by: " + this.getClass().getClassLoader());
+			new MyCat();	// MySample会使用自己的类加载器去加载MyCat
+		}
+	}
+
+
+	class MyCat {
+		public MyCat() {
+			System.out.println("MyCat is loaded by: " + this.getClass().getClassLoader());
+		}
+	}
+
+	注：
+	(1)、将MySample和MyCat的class文件移至classLoader所设置的path路径下，最终的打印结果是：
+
+		findClass invoked...
+		loading class: com.yc.demo.classloader.MySample
+		MySample is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
+		findClass invoked...
+		loading class: com.yc.demo.classloader.MyCat
+		MyCat is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
+
+	    即MySample和MyCat的类加载器均是MyClassLoader
+	(2)、若仅仅是将MySample的class保留在原来的classpath下，则程序运行会报NoClassDefFoundError，
+	     因为加载MySample的是AppClassLoader，AppClassLoader在当前classpath里加载不到MyCat。
+17、
 
