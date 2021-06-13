@@ -145,6 +145,39 @@
     (2)、自顶向下尝试加载类
 13、类加载器的命名空间：
     (1)、每个类加载器都有自己的命名空间，命名空间由该加载器及所有父加载器所加载的类组成；
+         理解：子加载器可以看到父加载器加载的类，而父加载器看不到子加载器加载的类
+	 例(利用到下面14的MyClassLoader)：
+	 public class ClassLoaderTest {
+		public static void main(String[] args) throws Exception {
+			MyClassLoader classLoader = new MyClassLoader();
+			classLoader.setPath("F:\\other\\backup\\jvm\\");
+			Class<?> clazz = classLoader.loadClass("com.yc.demo.MySample");
+			clazz.newInstance();
+		}
+	}
+
+        class MySample {
+		public MySample() {
+			System.out.println("MySample is loaded by: " + this.getClass().getClassLoader());
+			// 正常执行，MySample由子加载器MyClassLoader加载，MyCat由父加载器AppClassLoader加载
+			// 子加载器可以访问到父加载器加载的类
+			System.out.println("from MySample: " + MyCat.class);
+			new MyCat();
+		}
+	}
+
+	class MyCat {
+		public MyCat() {
+			System.out.println("MyCat is loaded by: " + this.getClass().getClassLoader());
+			// 报告NoClassDefFoundError，MyCat由父加载器AppClassLoader加载，MySample由子加载器
+			// MyClassLoader加载，父加载器无法访问子加载器加载的类
+			System.out.println("from MyCat: " + MySample.class);
+		}
+	}
+
+	注：将MySample的class文件移至classLoader所指定path路径下，程序运行报告NoClassDefFoundError(MySample)
+	    因为MySample由MyClassLoader加载，在加载MyCat的时候委托给了父加载器AppClassLoader加载，加载成功，
+	    在加载MySample的时候发现在自己的命名空间里找不到这个类（MySample是由子加载器MyClassLoader加载）。
     (2)、在同一个命名空间中，不会出现类的完整名字（包括类的包名）相同的两个类；
     (3)、在不同的命名空间中，有可能会出现类的完整名字（包括类的包名）相同的两个类
 14、自定义类加载器应该继承自ClassLoader类，并实现ClassLoader的findClass方法。
@@ -152,7 +185,7 @@
     (1)、如果类已经被加载，则直接返回类的Class对象；
     (2)、自定义类加载器委托父加载器加载类，如果加载成功，返回类的Class对象；
     (3)、自定义类加载器调用自己实现的findClass方法加载类的字节码生成Class对象。
-    例：
+    例1：
     	public class MyClassLoader extends ClassLoader {
 		private String path;
 
@@ -208,14 +241,68 @@
   			MyClassLoader classLoader2 = new MyClassLoader();
         		classLoader2.setPath("E:/others/test/out/production/demo/");
         		Class<?> clazz2 = classLoader2.loadClass("com.yc.demo.classloader.Dummy");
-			// 若classLoader1和classLoader2均是委托的父加载器加载Dummy，则和上面输出的hashcode值一样
-			// 若是自定义类加载器加载Dummy，则输出的hashcode值不同，因为两个类加载器命名空间不同，加载出来的Class对象不同
         		System.out.println("class: " + clazz2.hashCode());
         		System.out.println("object: " + clazz2.newInstance());
 		}
 	}
-15、若有一个类加载器能够成功加载Test类，那么这个类加载器被称为定义类加载器，所有能成功返回Class对象引用的类加载器（包括定义类加载器）都被
-    称为初始类加载器。（了解）
+
+	注：
+	(1)、若Dummy就在当前classpath下，则classLoader1委托父加载器AppClassLoader加载Dummy，
+	     classLoader2加载Dummy在执行到ClassLoader的406行时，注意虽然classLoader1已经加载过Dummy，
+	     但是这里并不会直接返回，因为classLoader1与classLoader2属于不同命名空间，
+	     在classLoader2的命名空间里并不存在Dummy的Class对象，因此classLoader2还会继续委托父加载器
+	     AppClassLoader来加载Dummy，而此时AppClassLoader发现已经加载过Dummy，因此会直接返回
+	     Dummy的Class对象，所以两次输出的hashcode值一样
+	(2)、若将Dummy的class文件移至MyClassLoader所指定的path路径下，则Dummy将由自定义类加载器加载，由于
+	     classLoader1和classLoader2属不同的命名空间，因此加载出来的Class对象不同，所以两次输出的hashcode值
+	     不一样
+
+	例2：
+	public class ClassLoaderTest {
+		public static void main(String[] args) {
+			MyClassLoader classLoader1 = new MyClassLoader();
+			classLoader1.setPath("F:/other/backup/jvm/");
+			MyClassLoader classLoader2 = new MyClassLoader();
+			classLoader2.setPath("F:/other/backup/jvm/");
+			Class<?> clazz1 = classLoader1.loadClass("com.yc.demo.MyPerson");
+			Class<?> clazz2 = classLoader2.loadClass("com.yc.demo.MyPerson");
+
+			System.out.println(clazz1 == clazz2);
+
+			Object obj1 = clazz1.newInstance();
+			Object obj2 = clazz2.newInstance();
+
+			Method method = clazz1.getDeclaredMethod("setMyPerson", Object.class);
+			method.invoke(obj1, obj2);
+		}
+	}
+
+	class MyPerson {
+		private MyPerson myPerson;
+		public void setMyPerson(Object object) {
+			this.myPerson = (MyPerson) object;
+		}
+	}
+
+	注：
+	(1)、MyPerson的class文件在当前classpath下，虽然classLoader1与classLoader2是两个不同的类加载器实例，
+	     但是它们在加载MyPerson的时候都会委托父加载器AppClassLoader去加载，因此加载出来的Class对象是相同的。
+	     System.out.println(clazz1 == clazz2);输出结果为true，程序正常执行
+	(2)、将MyPerson的class文件从当前classpath移至MyClassLoader所指定的path路径下，由于classLoader1与
+	     classLoader2属于不同的命名空间，因此加载出来的MyPerson的Class对象不同，
+	     各自实例化出来的对象也在不同的命名空间，不能相互转化，因此
+	     System.out.println(clazz1 == clazz2);输出结果为false，程序执行报告异常：
+	Exception in thread "main" java.lang.reflect.InvocationTargetException
+		at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+		at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+		at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+		at java.lang.reflect.Method.invoke(Method.java:498)
+		at com.yc.demo.ClassLoaderTest02.main(ClassLoaderTest02.java:21)
+	Caused by: java.lang.ClassCastException: com.yc.demo.MyPerson cannot be cast to com.yc.demo.MyPerson
+		at com.yc.demo.MyPerson.setMyPerson(MyPerson.java:7)
+		... 5 more
+15、若有一个类加载器能够成功加载Test类，那么这个类加载器被称为定义类加载器，
+所有能成功返回Class对象引用的类加载器（包括定义类加载器）都被称为初始类加载器。（了解）
 16、每个类都会尝试使用自己的类加载器去加载依赖的类。
     例：
 	public class ClassLoaderTest {
@@ -252,7 +339,14 @@
 		MyCat is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
 
 	    即MySample和MyCat的类加载器均是MyClassLoader
-	(2)、若仅仅是将MySample的class保留在原来的classpath下，则程序运行会报NoClassDefFoundError，
+	(2)、若仅仅是将MySample的class文件保留在原来的classpath下，则程序运行会报NoClassDefFoundError，
 	     因为加载MySample的是AppClassLoader，AppClassLoader在当前classpath里加载不到MyCat。
+	(3)、若仅仅是将MyCat的class文件保留在原来的classpath下，则程序正常执行，打印结果：
+		
+		findClass invoked: com.yc.demo.MySample
+		MySample is loaded by: com.yc.demo.MyClassLoader@74a14482
+		MyCat is loaded by: sun.misc.Launcher$AppClassLoader@18b4aac2
+
+		MyClassLoader加载MySample，在加载MyCat的时候委托给了父加载器AppClassLoader加载
 17、
 
