@@ -248,8 +248,9 @@
 
 	注：
 	(1)、若Dummy就在当前classpath下，则classLoader1委托父加载器AppClassLoader加载Dummy，加载出来的Class对象
-	     存在于classLoader1的命名空间；classLoader2尝试加载Dummy在执行到ClassLoader的406行时，并不会直接返回             Dummy的Class对象，因为classLoader1与classLoader2属于不同命名空间，
-	     在classLoader2的命名空间里并不存在Dummy的Class对象，因此classLoader2还会继续委托父加载器
+	     存在于父加载器AppClassLoader的缓存区域；classLoader2尝试加载Dummy在执行到ClassLoader的406行时，
+	     并不会直接返回Dummy的Class对象，因为在classLoader2的缓存区域里不存在Dummy的Class对象
+	     （甚至在classLoader1的缓存区域里也不存在），因此classLoader2还会继续委托父加载器
 	     AppClassLoader来加载Dummy，而此时AppClassLoader发现已经加载过Dummy，因此会直接返回
 	     Dummy的Class对象，所以两次输出的hashcode值一样
 	(2)、若将Dummy的class文件移至MyClassLoader所指定的path路径下，则Dummy将由自定义类加载器加载，由于
@@ -300,6 +301,10 @@
 	Caused by: java.lang.ClassCastException: com.yc.demo.MyPerson cannot be cast to com.yc.demo.MyPerson
 		at com.yc.demo.MyPerson.setMyPerson(MyPerson.java:7)
 		... 5 more
+
+	总结：在运行期，一个Java类是由该类的完全限定名（binary name，二进制名）和用于加载该类的定义类加载器（defining loader）所共同
+	      决定的。如果同样名字（即相同的完全限定名）的类是由两个不同的类加载器所加载，那么这些类就是不同的，即便.class文件的字节码
+	      完全一样，并且从相同的位置加载亦如此。
 15、若有一个类加载器能够成功加载Test类，那么这个类加载器被称为定义类加载器，
 所有能成功返回Class对象引用的类加载器（包括定义类加载器）都被称为初始类加载器。（了解）
 16、每个类都会尝试使用自己的类加载器去加载依赖的类。
@@ -360,3 +365,25 @@
     (3)、不同的类加载器可以为相同名称（binary name）的类创建额外的命名空间，相同名称的类可以并存在JVM中，
          只需要用不同的类加载器来加载它们即可，不同类加载器所加载的类之间是不兼容的，这就相当于在JVM内部创建了
 	 一个又一个相互隔离的Java类空间，这类技术在很多框架中都得到了实际应用。
+18、扩展类加载器在加载类时是在其被设定的扫描路径下（默认为java.ext.dirs）寻找包含这个类的jar包，而不是直接寻找这个类的class文件
+    例：
+    public class MyTest {
+    	public static void main(String[] args) {
+		System.out.println(MyTest.class.getClassLoader());
+	}
+    }
+
+    若要输出ExtClassLoader，除了要在当前classpath下执行java -Djava.ext.dirs=./ 将加载路径改为当前路径外，
+    还要在当前classpath下将MyTest.class文件达成jar包
+19、内建于JVM中的启动类加载器会加载java.lang.ClassLoader以及其他的Java平台类（java.lang.Object, java.lang.String...），
+    当JVM启动时，一块特殊的机器码会运行，它会加载扩展类加载器与系统类加载器，
+    这块特殊的机器码叫做启动类加载器（Bootstrap）。
+
+    启动类加载器并不是Java类，而其他的类加载器则都是Java类，
+    启动类加载器是特定于平台的机器指令，它负责开启整个加载过程。
+
+    所有类加载器（除了启动类加载器）都被实现为Java类。不过，总归要有一个组件来加载第一个Java类加载器，
+    从而让整个加载过程能够顺利进行下去，加载第一个纯Java类加载器就是启动类加载器的职责。
+
+    启动类加载器还会负责加载供JRE正常运行所需要的基本组件，这包括java.util与java.lang包中的类等等。
+20、
