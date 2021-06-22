@@ -386,4 +386,69 @@
     从而让整个加载过程能够顺利进行下去，加载第一个纯Java类加载器就是启动类加载器的职责。
 
     启动类加载器还会负责加载供JRE正常运行所需要的基本组件，这包括java.util与java.lang包中的类等等。
-20、
+20、通过修改java.system.class.loader系统属性（往往是一个类的全限定名）可以设定系统类加载器，而原来的系统类加载器AppClassLoader会作为
+    默认系统类加载器（default system class loader）而成为所设定的系统类加载器的父加载器，且所设定的类加载器被默认系统类加载器加载。
+    详细可以参照ClassLoader类的getSystemClassLoader方法的文档说明以及源码！
+21、当前类加载器（Current ClassLoader）：
+    每个类都会使用自己的类加载器（即加载自身的类加载器）来尝试去加载其他类（指的是所依赖的类），
+    如果ClassX引用了ClassY，那么ClassX的类加载器就会尝试加载ClassY（前提是ClassY尚未被加载ClassX的类加载器所属的命名空间里的加载器加载过）
+
+    线程上下文类加载器（Context ClassLoader）：
+    线程上下文类加载器是从JDK1.2开始引入的，类Thread中的getContextClassLoader()与setContextClassLoader(ClassLoader cl)
+    分别用来获取和设置线程上下文类加载器。
+
+    如果没有通过setContextClassLoader(ClassLoader cl)进行设置的话，线程将继承其父线程的上下文类加载器。
+    Java应用运行时的初始线程上下文类加载器是系统类加载器。在线程中运行的代码可以通过该类加载器来加载类与资源。
+
+    线程上下文类加载器的重要性：
+
+    SPI（Service Provicer Interface）
+
+    父ClassLoader可以使用当前线程Thread.currentThread().getContextClassLoader()所制定的classLoader所加载的类。
+    这就改变了父ClassLoader不能使用子ClassLoader或者是其他没有直接父子关系的ClassLoader所加载的类的情况，即改变了双亲委托模型。
+
+    线程上下文类加载器就是当前线程的Current ClassLoader。
+
+    在双亲委托模型下，类加载器是由下至上的，即下层的类加载器会委托上层进行加载。但是对于SPI来说，有些接口是Java核心库所提供的，
+    而Java核心库是由启动类加载器来加载的，而这些接口的实现却来自于不同的jar包（厂商提供），Java的启动类加载器是不会加载其他来源的
+    jar包，这样传统的双亲委托模型就无法满足SPI的要求。而通过给当前线程设置上下文类加载器，就可以有设置的上下文类加载器来实现对于
+    接口实现类的加载。
+22、
+    例：
+
+    import java.sql.Driver;
+    import java.util.ServiceLoader;
+    public class MyTest {
+    	public static void main(String[] args) {
+		ServiceLoader<Driver> loader = ServiceLoader.load(Driver.class);
+		for (Driver driver: loader) {
+			System.out.println("class: " + driver.getClass() + ", loader: " + driver.getClass.getClassLoader());
+			// driver: class com.mysql.cj.jdbc.Driver, loader: sun.misc.Launcher$AppClassLoader@73d16e93
+		}
+		System.out.println("current thread context classloader: " + Thread.currentThread().getContextClassLoader());
+		// current thread context classloader: sun.misc.Launcher$AppClassLoader@73d16e93
+		System.out.println("classloader of ServiceLoader: " + ServiceLoader.class.getClassLoader());
+		// classloader of ServiceLoader: null
+	}
+    }
+
+    注：
+    ServiceLoader会带着当前线程上下文类加载器去寻找META-INF/services/java.sql.Driver文件来加载文件里面列出的驱动类。
+    若在main方法里的第一行有如下代码：
+    Thread.currentThread().setContextClassLoader(MyTest.class.getClassLoader().getParent());
+    当前线程的上下文类加载器将变成加载MyTest类的父加载器，即AppClassLoader的父加载器，亦即ExtClassLoader
+    for循环里的代码也将不会执行，因为程序在执行到ServiceLoader类的354行时返回false（具体可以debug调试）
+    具体可以参照ServiceLoader类的文档说明及源码！
+23、Class.forName(className); 除了会触发类的加载还会触发类的初始化。
+    因为底层调用的是forName0(className, true, classLoader);
+    第二个参数表示是否将加载的类进行初始化，而第三个参数是加载这个类的类加载器，是调用Class.forName(className);的类的类加载器。
+    也可以显式调用Class.forName(className, boolean, classLoader); 来指定类是否初始化和使用哪个类加载器
+24、加载数据库驱动程序不需要显式写代码：Class.forName("com.mysql.jdbc.Driver"); 
+    因为在获取数据库连接时DriverManager.getConnection(url, username, password); 会去加载数据库驱动类。
+    执行过程：
+    (1)、调用DriverManager.getConnection会导致DriverManager类的静态代码块执行；
+    (2)、静态代码块里执行loadInitialDrivers方法，会使用ServiceLoader去加载（ServiceLoader的370行）并实例化（ServiceLoader的380行）
+         数据库驱动类（使用的是当前线程的上下文类加载器去加载）；
+    (3)、实例化驱动类会导致驱动类的静态代码块执行，会调用DriverManager的registerDriver方法将自己注册添加到DriverManager的registerDrivers；
+    (4)、DriverManager.getConnection方法正式执行，会循环registerDrivers获取数据库连接，获取到即返回这个连接。
+25、
