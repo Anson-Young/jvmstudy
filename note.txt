@@ -453,7 +453,8 @@
     (4)、DriverManager.getConnection方法正式执行，会循环registerDrivers获取数据库连接，获取到即返回这个连接。
 25、关于Java的跨平台原理，可参照如下文章：
     https://www.jianshu.com/p/03a947d5bc50
-26、使用javap -verbose命令分析一个字节码文件时，将会分析该字节码文件的魔数、版本号、常量池、类信息、类的构造方法、类变量与成员变量等信息。
+26、使用javap -verbose命令分析一个字节码文件时，将会分析该字节码文件的魔数、版本号、常量池、类信息、类的构造方法、类变量与成员变量等信息，
+    加上-p参数，会显示出私有方法信息。
    
     (1)、魔数：所有的.class字节码文件的前4个字节都是魔数，魔数值为固定值：0xCAFEBABE。
          魔数之后的4个字节为版本信息，前两个字节表示minor version(次版本号)，后两个字节表示major version(主版本号)。这里的版本号为
@@ -477,3 +478,30 @@
     (5)、用描述符描述方法时，按照先参数列表，后返回值的顺序来描述。参数列表按照参数的严格顺序放在一组()之内，
          如方法：String getRealnamebyidAndNickname(int id, String name)的描述符为：
 	 (I, Ljava/lang/String;)Ljava/lang/String;
+27、从字节码里<init>方法的Code属性可以看出，类里成员变量的初始化其实是在该<init>方法里即源文件里的构造方法里完成的，
+    无论是源文件里没有构造方法编译器自动生成的构造方法，还是源文件里本来就写好的构造方法(无论写了多少个)。
+    原因是编译器在编译源文件时会将指令做一个重排序。
+28、对于Java类中的每一个实例方法(非static方法)，其在编译后所生成的字节码当中，方法参数的数量总是会比源代码中方法参数的数量多一个(this)，
+    它位于方法的第一个参数位置处，这样，我们就可以在Java的实例方法中使用this来去访问当前对象的属性以及其他方法。
+    这个操作是在编译器完成的，即由javac编译器在编译的时候将对this的访问转化为对一个普通实例方法第一个参数的访问，接下来在运行i期间，
+    由JVM在调用实例方法时，自动向实例方法传入该this参数。所以，在实例方法的局部变量表中，至少会有一个指向当前对象的局部变量。
+    这一点除了在字节码中体现，在Java8的新特性方法引用里也能够体现：
+    class This {
+    	String two(int i, double d) {
+		return "";
+	}
+    }
+
+    interface TwoArgs {
+    	String call2(This athis, int i, double d);
+    }
+
+    public class MultiUnbound {
+    	public static void main(String[] args) {
+		TwoArgs twoargs = This::two;	// 编译后的字节码中，This的two方法实为3个参数(第一个参数为this)，
+		                                // 与TwoArgs的call2方法签名相同
+		This athis = new This();
+		twoargs.call2(athis, 11, 3.14);
+	}
+    }
+29、
