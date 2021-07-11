@@ -504,4 +504,124 @@
 		twoargs.call2(athis, 11, 3.14);
 	}
     }
-29、
+29、有些符号引用(类、方法、字段的全限定名)是在类加载阶段(连接阶段的解析阶段)就会转换为直接引用，
+    这种转换叫做静态解析；
+    另外一些符号引用则是在每次运行期转换为直接引用，这种转换叫做动态链接，这体现为Java的多态性。例如：
+    abstract class Animal {
+    	abstract public void eat();
+    }
+    class Cat extends Animal {
+    	@Override
+	public void eat() {
+		System.out.println("cat eat...");
+	}
+    }
+    class Dog extends Animal {
+    	@Override
+	public void eat() {
+		System.out.println("dog eat...");
+	}
+    }
+
+    public class Test {
+    	public void test(Animal animal) {
+		animal.eat();
+	}
+    }
+
+    animal调用eat方法，在编译期引用的是Animal类的eat方法(符号引用)，只有在运行期才能动态确定animal被赋予的
+    是Animal的哪个子类对象，从而确定是调用哪个子类的eat方法，这时才将eat的符号引用转换为具体子类对象的eat
+    方法的直接引用地址。
+30、字节码里方法调用的5种形态：
+    (1)、invokeinterface：调用接口中的方法，实际上是在运行期决定的，决定到底调用实现该接口的哪个对象的特定方法。
+    (2)、invokestatic：调用静态方法。
+    (3)、invokespecial：调用自己的私有方法、构造方法(<init>)以及父类方法。
+    (4)、invokevirtual：调用虚方法，运行期动态查找的过程。
+    (5)、invokedynamic：动态调用方法。
+31、静态解析的4种情形：
+    (1)、静态方法
+    (2)、父类方法
+    (3)、构造方法
+    (4)、私有方法(无法被重写)
+
+    以上4类方法称作非虚方法，它们是在类加载阶段就可以将符号引用转换为直接引用。
+32、 方法的静态分派(涉及到的概念为方法重载)：
+     public class MyTest {
+	
+	// 方法重载是一种静态行为，编译器就可以完全确定
+
+	public void test(Grandpa grandpa) {
+		System.out.println("grandpa");
+	}
+
+	public void test(Father father) {
+		System.out.println("father");
+	}
+
+	public void test(Son son) {
+		System.out.println("son");
+	}
+
+     	public static void main(String[] args) {
+		// g1的静态类型是Grandpa，而g1的实际类型(真正指向的类型)是Father。
+		// 变量的静态类型是不会发生变化的，而变量的实际类型则是可以发生变化的(多态的一种体现)
+		// 实际类型是在运行期才可确定。
+		Grandpa g1 = new Father();
+		Grandpa g2 = new Son();
+		MyTest myTest = new MyTest();
+		myTest.test(g1);	// grandpa，对应的字节码指令为invokevirtual
+		myTest.test(g2);	// grandpa，对应的字节码指令为invokevirtual
+	}
+     }
+
+     class Grandpa {}
+     class Father extends Grandpa {}
+     class Son extends Father {}
+
+33、实例化对象的字节码指令一般有4个：
+    new：创建指定类型的对象实例，对其进行默认初始化，并将指向该实例的一个引用压入操作数栈顶
+    dup：将操作数栈顶的引用复制一份(duplicate)，以备这个引用被invokespecial指令消耗掉之后还能被astore指令使用
+    invokespecial：调用自身构造器<init>，会传入隐式的this参数，这个this就是new指令压入操作数栈顶的实例引用，
+                   它在invokespecial指令执行时会被消耗掉
+    astore_(n)：也会把操作数栈顶的那个引用消耗掉，保存到指定的局部变量中去，因此在invokespeial指令执行消耗掉
+                操作数栈顶引用之前先dup一份引用
+34、方法的动态分派(涉及到的概念为方法重写)：
+    方法重写与方法重载区别的重要标志是：方法接收者，即调用方法的对象。
+
+    public class MyTest {
+    	public static void main(String[] args) {
+		Fruit apple = new Apple();
+		Fruit orange = new Orange();
+
+		apple.test();	// apple，对应的字节码指令为invokespecial
+		orange.test();	// orange，对应的字节码指令为invokespecial
+	}
+    }
+
+    class Fruit {
+    	public void test() {
+		System.out.println("fruit");
+	}
+    }
+
+    class Apple extends Fruit {
+    	@Override
+	public void test() {
+		System.out.println("apple");
+	}
+    }
+
+    class Orange extends Fruit {
+    	@Override
+	public void test() {
+		System.out.println("orange");
+	}
+    }
+
+    注：invokespecial字节码指令的动态查找流程：
+    	(1)、找到操作数栈顶的第一个元素引用所指向的实际类型的对象
+	(2)、在常量池中查找与所重写的方法签名(即符号引用)相同方法名和描述符的方法引用，
+	     若找到了，则执行第(3)步；若没找到，则执行第(4)步
+	(3)、将invokespecial字节码指令所对应的符号引用转换为所查找到的直接引用
+	(4)、在父类对象的常量池中查找，重复执行(2)、(3)、(4)，直到找到为止，若没找到则抛异常
+35、
