@@ -643,4 +643,23 @@ astore_(n)：也会把操作数栈顶的那个引用消耗掉，保存到指定�
 	     若找到了，则执行第(3)步；若没找到，则执行第(4)步
 	(3)、将invokespecial字节码指令所对应的符号引用转换为所查找到的直接引用
 	(4)、在父类对象的常量池中查找，重复执行(2)、(3)、(4)，直到找到为止，若没找到则抛异常
-35、
+35、jdk动态代理的本质是程序在运行过程中动态生成所代理类的字节码，程序通过加载该字节码生成Class对象，而后
+通过Class对象反射进行实例化最终生成动态代理对象。字节码class文件是否生成到硬盘由系统参数
+sun.misc.ProxyGenerator.saveGeneratedFiles是否为true决定。Object类的hashCode、equals、toString方法也会被
+代理，即动态生成的代理类当中，这3个方法会以和被代理类里的方法同样的代理方法生成形式生成到代理类当中：
+```
+private static Method m1;
+static {
+    try {
+        m1 = Class.forName("java.lang.Object").getMethod("equals", Class.forName("java.lang.Object"));
+    } catch...
+    }
+}
+
+public final boolean equals(Object var1) {
+    try {
+        return (Boolean) super.h.invoke(this, m1, new Object[] { var1 });
+    } catch...
+    }
+}
+```
