@@ -297,7 +297,7 @@ Lazy implementation of JVM，这是由JVM的具体实现所决定的，不同的
      class MyPerson {
          private MyPerson myPerson;
          public void setMyPerson(Object object) {
-             this.myPerson = (MyPerson) object;
+     		 this.myPerson = (MyPerson) object;
          }
      }
      ```
@@ -328,158 +328,138 @@ Lazy implementation of JVM，这是由JVM的具体实现所决定的，不同的
 
 16、每个类都会尝试使用自己的类加载器去加载依赖的类：
 ```java
-public class ClassLoaderTest {
-public static void main(String[] args) throws Exception {
-MyClassLoader classLoader = new MyClassLoader();
-classLoader.setPath("E:/others/test/out/production/demo/");
-Class<?> clazz = classLoader.loadClass("com.yc.demo.classloader.MySample");
-clazz.newInstance();
+public class ClassLoaderTest { 
+    public static void main(String[] args) throws Exception { 
+        MyClassLoader classLoader = new MyClassLoader();
+        classLoader.setPath("E:/others/test/out/production/demo/");
+        Class<?> clazz = classLoader.loadClass("com.yc.demo.classloader.MySample");
+        clazz.newInstance();
+    }
 }
+
+class MySample { 
+    public MySample() { 
+        System.out.println("MySample is loaded by: " + this.getClass().getClassLoader());
+        new MyCat();	// MySample会使用自己的类加载器去加载MyCat 
+    }
 }
 
-	class MySample {
-		public MySample() {
-			System.out.println("MySample is loaded by: " + this.getClass().getClassLoader());
-			new MyCat();	// MySample会使用自己的类加载器去加载MyCat
-		}
-	}
-
-
-	class MyCat {
-		public MyCat() {
-			System.out.println("MyCat is loaded by: " + this.getClass().getClassLoader());
-		}
-	}
+class MyCat { 
+    public MyCat() { 
+        System.out.println("MyCat is loaded by: " + this.getClass().getClassLoader()); 
+    }
+}
 ```
-	注：
-	(1)、将MySample和MyCat的class文件移至classLoader所设置的path路径下，最终的打印结果是：
+注：
+   * 将MySample和MyCat的class文件移至classLoader所设置的path路径下，最终的打印结果是：
+	 ```
+	 findClass invoked...
+	 loading class: com.yc.demo.classloader.MySample
+	 MySample is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
+	 findClass invoked...
+	 loading class: com.yc.demo.classloader.MyCat
+	 MyCat is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
+	 ```
+     即MySample和MyCat的类加载器均是MyClassLoader 
+	 
+   * 若仅仅是将MySample的class文件保留在原来的classpath下，则程序运行会报NoClassDefFoundError，
+	 因为加载MySample的是AppClassLoader，AppClassLoader在当前classpath里加载不到MyCat。
+	
+   * 若仅仅是将MyCat的class文件保留在原来的classpath下，则程序正常执行，打印结果：
+	 ```	
+	 findClass invoked: com.yc.demo.MySample
+	 MySample is loaded by: com.yc.demo.MyClassLoader@74a14482
+	 MyCat is loaded by: sun.misc.Launcher$AppClassLoader@18b4aac2
+	 ```
+	 MyClassLoader加载MySample，在加载MyCat的时候委托给了父加载器AppClassLoader加载
 
-		findClass invoked...
-		loading class: com.yc.demo.classloader.MySample
-		MySample is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
-		findClass invoked...
-		loading class: com.yc.demo.classloader.MyCat
-		MyCat is loaded by: com.yc.demo.classloader.MyClassLoader@4554617c
-
-	    即MySample和MyCat的类加载器均是MyClassLoader
-	(2)、若仅仅是将MySample的class文件保留在原来的classpath下，则程序运行会报NoClassDefFoundError，
-	     因为加载MySample的是AppClassLoader，AppClassLoader在当前classpath里加载不到MyCat。
-	(3)、若仅仅是将MyCat的class文件保留在原来的classpath下，则程序正常执行，打印结果：
-		
-		findClass invoked: com.yc.demo.MySample
-		MySample is loaded by: com.yc.demo.MyClassLoader@74a14482
-		MyCat is loaded by: sun.misc.Launcher$AppClassLoader@18b4aac2
-
-		MyClassLoader加载MySample，在加载MyCat的时候委托给了父加载器AppClassLoader加载
 17、类加载器的双亲委托模型的好处：
-(1)、可以确保Java核心库的类型安全：所有的Java应用都至少会引用java.lang.Object类，也就是说在运行期，
+   * 可以确保Java核心库的类型安全：所有的Java应用都至少会引用java.lang.Object类，也就是说在运行期，
 java.lang.Object这个类会被加载到JVM中，如果这个过程是由Java应用自己的类加载器所完成的，那么很可能就会在
 JVM中存在多个版本的java.lang.Object类，而且这些类之间还是不兼容且相互不可见的（正是命名空间在发挥作用）
 借助于双亲委托机制，Java核心类库中的类的加载工作都是由启动类加载器来统一完成，从而确保了Java应用所使用
 的都是同一个版本的Java核心类库，它们之间是相互兼容的。
-(2)、可以确保Java核心类库所提供的类不会被自定义的类所替代。例如自己也定义了一个java.lang.Object，默认情况下
+   * 可以确保Java核心类库所提供的类不会被自定义的类所替代。例如自己也定义了一个java.lang.Object，默认情况下
 这个自定义的类由AppClassLoader加载，在双亲委托模型下，最终这个类会委托给根类加载器（Bootstrap）加载，
 而根类加载器已经加载过一个java.lang.Object（JRE\lib\rt.jar），
 因此会直接返回这个jre所自带的类，自定义的类无效。
-(3)、不同的类加载器可以为相同名称（binary name）的类创建额外的命名空间，相同名称的类可以并存在JVM中，
+   * 不同的类加载器可以为相同名称（binary name）的类创建额外的命名空间，相同名称的类可以并存在JVM中，
 只需要用不同的类加载器来加载它们即可，不同类加载器所加载的类之间是不兼容的，这就相当于在JVM内部创建了
 一个又一个相互隔离的Java类空间，这类技术在很多框架中都得到了实际应用。
-18、扩展类加载器在加载类时是在其被设定的扫描路径下（默认为java.ext.dirs）寻找包含这个类的jar包，而不是直接寻找这个类的class文件
-例：
-public class MyTest {
-public static void main(String[] args) {
-System.out.println(MyTest.class.getClassLoader());
+	 
+18、扩展类加载器在加载类时是在其被设定的扫描路径下（默认为java.ext.dirs）寻找包含这个类的jar包，而不是直接寻找这个类的class文件：
+```java
+public class MyTest { 
+    public static void main(String[] args) { 
+        System.out.println(MyTest.class.getClassLoader()); 
+    }
 }
-}
+```
+若要输出ExtClassLoader，除了要在当前classpath下执行java -Djava.ext.dirs=./ 将加载路径改为当前路径外，还要在当前classpath下将MyTest.class文件达成jar包。
 
-    若要输出ExtClassLoader，除了要在当前classpath下执行java -Djava.ext.dirs=./ 将加载路径改为当前路径外，
-    还要在当前classpath下将MyTest.class文件达成jar包
 19、内建于JVM中的启动类加载器会加载java.lang.ClassLoader以及其他的Java平台类（java.lang.Object, java.lang.String...），
-当JVM启动时，一块特殊的机器码会运行，它会加载扩展类加载器与系统类加载器，
-这块特殊的机器码叫做启动类加载器（Bootstrap）。
+    当JVM启动时，一块特殊的机器码会运行，它会加载扩展类加载器与系统类加载器，这块特殊的机器码叫做启动类加载器（Bootstrap）。
+   * 启动类加载器并不是Java类，而其他的类加载器则都是Java类，
+   * 启动类加载器是特定于平台的机器指令，它负责开启整个加载过程。
+   * 所有类加载器（除了启动类加载器）都被实现为Java类。不过，总归要有一个组件来加载第一个Java类加载器，从而让整个加载过程能够顺利进行下去，加载第一个纯Java类加载器就是启动类加载器的职责。
+   * 启动类加载器还会负责加载供JRE正常运行所需要的基本组件，这包括java.util与java.lang包中的类等等。
 
-    启动类加载器并不是Java类，而其他的类加载器则都是Java类，
-    启动类加载器是特定于平台的机器指令，它负责开启整个加载过程。
-
-    所有类加载器（除了启动类加载器）都被实现为Java类。不过，总归要有一个组件来加载第一个Java类加载器，
-    从而让整个加载过程能够顺利进行下去，加载第一个纯Java类加载器就是启动类加载器的职责。
-
-    启动类加载器还会负责加载供JRE正常运行所需要的基本组件，这包括java.util与java.lang包中的类等等。
 20、通过修改java.system.class.loader系统属性（往往是一个类的全限定名）可以设定系统类加载器，而原来的系统类加载器AppClassLoader会作为
 默认系统类加载器（default system class loader）而成为所设定的系统类加载器的父加载器，且所设定的类加载器被默认系统类加载器加载。
 详细可以参照ClassLoader类的getSystemClassLoader方法的文档说明以及源码！
-21、当前类加载器（Current ClassLoader）：
-每个类都会使用自己的类加载器（即加载自身的类加载器）来尝试去加载其他类（指的是所依赖的类），
-如果ClassX引用了ClassY，那么ClassX的类加载器就会尝试加载ClassY（前提是ClassY尚未被加载ClassX的类加载器所属的命名空间里的加载器加载过）
 
-    线程上下文类加载器（Context ClassLoader）：
-    线程上下文类加载器是从JDK1.2开始引入的，类Thread中的getContextClassLoader()与setContextClassLoader(ClassLoader cl)
-    分别用来获取和设置线程上下文类加载器。
-
-    如果没有通过setContextClassLoader(ClassLoader cl)进行设置的话，线程将继承其父线程的上下文类加载器。
+21、当前类加载器（Current ClassLoader）与线程上下文类加载器（Context ClassLoader）
+   * 当前类加载器（Current ClassLoader）：每个类都会使用自己的类加载器（即加载自身的类加载器）来尝试去加载其他类（指的是所依赖的类），
+	 如果ClassX引用了ClassY，那么ClassX的类加载器就会尝试加载ClassY（前提是ClassY尚未被加载ClassX的类加载器所属的命名空间里的加载器加载过）
+   * 线程上下文类加载器（Context ClassLoader）：线程上下文类加载器是从JDK1.2开始引入的，类Thread中的getContextClassLoader()与setContextClassLoader(ClassLoader cl)
+     分别用来获取和设置线程上下文类加载器。线程上下文类加载器就是当前线程的Current ClassLoader。如果没有通过setContextClassLoader(ClassLoader cl)进行设置的话，线程将继承其父线程的上下文类加载器。
     Java应用运行时的初始线程上下文类加载器是系统类加载器。在线程中运行的代码可以通过该类加载器来加载类与资源。
+   * 线程上下文类加载器的重要性：父ClassLoader可以使用当前线程Thread.currentThread().getContextClassLoader()所制定的classLoader所加载的类。
+	 这就改变了父ClassLoader不能使用子ClassLoader或者是其他没有直接父子关系的ClassLoader所加载的类的情况，即改变了双亲委托模型。<br/>
+	 典型应用是**SPI**（Service Provicer Interface）在双亲委托模型下，类加载器是由下至上的，即下层的类加载器会委托上层进行加载。但是对于SPI来说，有些接口是Java核心库所提供的，
+     而Java核心库是由启动类加载器来加载的，而这些接口的实现却来自于不同的jar包（厂商提供），Java的启动类加载器是不会加载其他来源的
+     jar包，这样传统的双亲委托模型就无法满足SPI的要求。而通过给当前线程设置上下文类加载器，就可以有设置的上下文类加载器来实现对于
+     接口实现类的加载。例：
+	 ```java
+	 import java.sql.Driver;
+	 import java.util.ServiceLoader;
+	 public class MyTest {
+	     public static void main(String[] args) {
+	         ServiceLoader<Driver> loader = ServiceLoader.load(Driver.class);
+	         for (Driver driver: loader) {
+	             System.out.println("class: " + driver.getClass() + ", loader: " + driver.getClass.getClassLoader());
+	             // driver: class com.mysql.cj.jdbc.Driver, loader: sun.misc.Launcher$AppClassLoader@73d16e93
+	         }
+	         System.out.println("current thread context classloader: " + Thread.currentThread().getContextClassLoader());
+	         // current thread context classloader: sun.misc.Launcher$AppClassLoader@73d16e93  
+			System.out.println("classloader of ServiceLoader: " + ServiceLoader.class.getClassLoader());
+			// classloader of ServiceLoader: null
+	     }
+	 }
+  	 ```
+     注：
+     ServiceLoader会带着当前线程上下文类加载器去寻找mysql驱动包里的META-INF/services/java.sql.Driver文件来加载文件里面列出的驱动类。
+     若在main方法里的第一行有如下代码：`Thread.currentThread().setContextClassLoader(MyTest.class.getClassLoader().getParent());`
+     当前线程的上下文类加载器将变成加载MyTest类的父加载器，即AppClassLoader的父加载器，亦即ExtClassLoader
+     for循环里的代码也将不会执行，因为程序在执行到ServiceLoader类的354行时返回false（具体可以debug调试）
+     具体可以参照ServiceLoader类的文档说明及源码！
+	 
+22、Class.forName(className); 除了会触发类的加载还会触发类的初始化。因为底层调用的是forName0(className, true, classLoader);
+	第二个参数表示是否将加载的类进行初始化，而第三个参数是加载这个类的类加载器，是调用Class.forName(className);的类的类加载器。
+	也可以显式调用Class.forName(className, boolean, classLoader); 来指定类是否初始化和使用哪个类加载器
+	 
+23、加载数据库驱动程序不需要显式写代码：`Class.forName("com.mysql.jdbc.Driver");`因为在获取数据库连接时`DriverManager.getConnection(url, username, password);`会去加载数据库驱动类。执行过程：
+   * 调用DriverManager.getConnection会导致DriverManager类的静态代码块执行；
+   * 静态代码块里执行loadInitialDrivers方法，会使用ServiceLoader去加载（ServiceLoader的370行）并实例化（ServiceLoader的380行）数据库驱动类（使用的是当前线程的上下文类加载器去加载）；
+   * 实例化驱动类会导致驱动类的静态代码块执行，会调用DriverManager的registerDriver方法将自己注册添加到DriverManager的registerDrivers；
+   * DriverManager.getConnection方法正式执行，会循环registerDrivers获取数据库连接，获取到即返回这个连接。
 
-    线程上下文类加载器的重要性：
+24、关于Java的跨平台原理，可参照如下文章：https://www.jianshu.com/p/03a947d5bc50
 
-    SPI（Service Provicer Interface）
-
-    父ClassLoader可以使用当前线程Thread.currentThread().getContextClassLoader()所制定的classLoader所加载的类。
-    这就改变了父ClassLoader不能使用子ClassLoader或者是其他没有直接父子关系的ClassLoader所加载的类的情况，即改变了双亲委托模型。
-
-    线程上下文类加载器就是当前线程的Current ClassLoader。
-
-    在双亲委托模型下，类加载器是由下至上的，即下层的类加载器会委托上层进行加载。但是对于SPI来说，有些接口是Java核心库所提供的，
-    而Java核心库是由启动类加载器来加载的，而这些接口的实现却来自于不同的jar包（厂商提供），Java的启动类加载器是不会加载其他来源的
-    jar包，这样传统的双亲委托模型就无法满足SPI的要求。而通过给当前线程设置上下文类加载器，就可以有设置的上下文类加载器来实现对于
-    接口实现类的加载。
-22、
-例：
-
-    import java.sql.Driver;
-    import java.util.ServiceLoader;
-    public class MyTest {
-    	public static void main(String[] args) {
-		ServiceLoader<Driver> loader = ServiceLoader.load(Driver.class);
-		for (Driver driver: loader) {
-			System.out.println("class: " + driver.getClass() + ", loader: " + driver.getClass.getClassLoader());
-			// driver: class com.mysql.cj.jdbc.Driver, loader: sun.misc.Launcher$AppClassLoader@73d16e93
-		}
-		System.out.println("current thread context classloader: " + Thread.currentThread().getContextClassLoader());
-		// current thread context classloader: sun.misc.Launcher$AppClassLoader@73d16e93
-		System.out.println("classloader of ServiceLoader: " + ServiceLoader.class.getClassLoader());
-		// classloader of ServiceLoader: null
-	}
-    }
-
-    注：
-    ServiceLoader会带着当前线程上下文类加载器去寻找META-INF/services/java.sql.Driver文件来加载文件里面列出的驱动类。
-    若在main方法里的第一行有如下代码：
-    Thread.currentThread().setContextClassLoader(MyTest.class.getClassLoader().getParent());
-    当前线程的上下文类加载器将变成加载MyTest类的父加载器，即AppClassLoader的父加载器，亦即ExtClassLoader
-    for循环里的代码也将不会执行，因为程序在执行到ServiceLoader类的354行时返回false（具体可以debug调试）
-    具体可以参照ServiceLoader类的文档说明及源码！
-23、Class.forName(className); 除了会触发类的加载还会触发类的初始化。
-因为底层调用的是forName0(className, true, classLoader);
-第二个参数表示是否将加载的类进行初始化，而第三个参数是加载这个类的类加载器，是调用Class.forName(className);的类的类加载器。
-也可以显式调用Class.forName(className, boolean, classLoader); 来指定类是否初始化和使用哪个类加载器
-24、加载数据库驱动程序不需要显式写代码：Class.forName("com.mysql.jdbc.Driver");
-因为在获取数据库连接时DriverManager.getConnection(url, username, password); 会去加载数据库驱动类。
-执行过程：
-(1)、调用DriverManager.getConnection会导致DriverManager类的静态代码块执行；
-(2)、静态代码块里执行loadInitialDrivers方法，会使用ServiceLoader去加载（ServiceLoader的370行）并实例化（ServiceLoader的380行）
-数据库驱动类（使用的是当前线程的上下文类加载器去加载）；
-(3)、实例化驱动类会导致驱动类的静态代码块执行，会调用DriverManager的registerDriver方法将自己注册添加到DriverManager的registerDrivers；
-(4)、DriverManager.getConnection方法正式执行，会循环registerDrivers获取数据库连接，获取到即返回这个连接。
-25、关于Java的跨平台原理，可参照如下文章：
-https://www.jianshu.com/p/03a947d5bc50
-26、使用javap -verbose命令分析一个字节码文件时，将会分析该字节码文件的魔数、版本号、常量池、类信息、类的构造方法、类变量与成员变量等信息，
-加上-p参数，会显示出私有方法信息。
-
-    (1)、魔数：所有的.class字节码文件的前4个字节都是魔数，魔数值为固定值：0xCAFEBABE。
-         魔数之后的4个字节为版本信息，前两个字节表示minor version(次版本号)，后两个字节表示major version(主版本号)。这里的版本号为
+25、使用javap -verbose命令分析一个字节码文件时，将会分析该字节码文件的魔数、版本号、常量池、类信息、类的构造方法、类变量与成员变量等信息，加上-p参数，会显示出私有方法信息。
+   * 魔数：所有的.class字节码文件的前4个字节都是魔数，魔数值为固定值：0xCAFEBABE。魔数之后的4个字节为版本信息，前两个字节表示minor version(次版本号)，后两个字节表示major version(主版本号)。这里的版本号为
 	 00 00 00 34，换算成十进制，表示次版本号为0，主版本号为52(对应jdk版本是1.8，51对应1.7，以此类推)。所以，该文件的版本号为1.8.0
-    (2)、常量池(constant pool)：紧接着主版本号之后的就是常量池入口。一个Java类中定义的很多信息都是由来维护和描述的，可以将常量池看作是
-    	 class文件的资源库，比如说Java类中定义的方法与变量信息，都是存储在常量池中。常量池中主要存储两类常量：字面量和符号引用。字面量
+   * 常量池(constant pool)：紧接着主版本号之后的就是常量池入口。一个Java类中定义的很多信息都是由来维护和描述的，可以将常量池看作是class文件的资源库，比如说Java类中定义的方法与变量信息，都是存储在常量池中。常量池中主要存储两类常量：字面量和符号引用。字面量
 	 如文本字符串(Java中声明为final的常量等)，而符号引用如类和接口的全限定名，字段的名称和描述符，方法的名称和描述符等。
 	 常量池的总体结构：Java类所对应的常量池主要由常量池数量与常量池数组(常量表)这两部分组成。常量池数量紧跟在主版本号后面，占据2个
 	 字节；常量池数组则紧跟在常量池数量之后。常量池数组与一般的数组不用的是，常量池数组中不同的元素类型、结构都是不同的，长度当然
@@ -487,163 +467,170 @@ https://www.jianshu.com/p/03a947d5bc50
 	 元素的具体类型。值得注意的是，常量池数组中的元素个数 = 常量池数 - 1(其中0暂时不使用)，目的是满足某些常量池索引值的数据在特定
 	 情况下需要表达"不引用任何一个常量池"的含义；根本原因在于，索引为0也是一个常量(保留常量)，只不过它不位于常量表中，这个常量就对应
 	 null值；所以，常量池的索引从1而非0开始。
-    (3)、在JVM规范中，每个变量/字段都有描述信息，描述信息的主要作用是描述字段的数据类型、方法的参数列表
+   * 在JVM规范中，每个变量/字段都有描述信息，描述信息的主要作用是描述字段的数据类型、方法的参数列表
 	 (包括数量、类型与顺序)与返回值。根据描述符规则，基本数据类型和代表无返回值的void类型都用一个大写字符
 	 来表示，对象类型则使用字符L+对象的全限定名来表示，目的是为了压缩字节码文件的体积。如下所示：
 	 B - byte，C - char，D - double，F - float，I - int，J - long，S - short，Z - boolean，V - void，
 	 L - 对象类型(Ljava/lang/String;)
-    (4)、对于数组类型来说，每一个维度使用一个前置的[来表示，如int[]被记录为[I，
+   * 对于数组类型来说，每一个维度使用一个前置的[来表示，如int[]被记录为[I，
          String[][]被记录为[[Ljava/lang/String;
-    (5)、用描述符描述方法时，按照先参数列表，后返回值的顺序来描述。参数列表按照参数的严格顺序放在一组()之内，
+   * 用描述符描述方法时，按照先参数列表，后返回值的顺序来描述。参数列表按照参数的严格顺序放在一组()之内，
          如方法：String getRealnamebyidAndNickname(int id, String name)的描述符为：
 	 (I, Ljava/lang/String;)Ljava/lang/String;
-27、从字节码里<init>方法的Code属性可以看出，类里成员变量的初始化其实是在该<init>方法里即源文件里的构造方法里完成的，
-无论是源文件里没有构造方法编译器自动生成的构造方法，还是源文件里本来就写好的构造方法(无论写了多少个)。
-原因是编译器在编译源文件时会将指令做一个重排序。
-28、对于Java类中的每一个实例方法(非static方法)，其在编译后所生成的字节码当中，方法参数的数量总是会比源代码中方法参数的数量多一个(this)，
-它位于方法的第一个参数位置处，这样，我们就可以在Java的实例方法中使用this来去访问当前对象的属性以及其他方法。
-这个操作是在编译器完成的，即由javac编译器在编译的时候将对this的访问转化为对一个普通实例方法第一个参数的访问，接下来在运行i期间，
-由JVM在调用实例方法时，自动向实例方法传入该this参数。所以，在实例方法的局部变量表中，至少会有一个指向当前对象的局部变量。
-这一点除了在字节码中体现，在Java8的新特性方法引用里也能够体现：
+	 
+26、从字节码里<init>方法的Code属性可以看出，类里成员变量的初始化其实是在该<init>方法里即源文件里的构造方法里完成的，
+	无论是源文件里没有构造方法编译器自动生成的构造方法，还是源文件里本来就写好的构造方法(无论写了多少个)。
+	原因是编译器在编译源文件时会将指令做一个重排序。
+
+27、对于Java类中的每一个实例方法(非static方法)，其在编译后所生成的字节码当中，方法参数的数量总是会比源代码中方法参数的数量多一个(this)，
+	它位于方法的第一个参数位置处，这样，我们就可以在Java的实例方法中使用this来去访问当前对象的属性以及其他方法。
+	这个操作是在编译器完成的，即由javac编译器在编译的时候将对this的访问转化为对一个普通实例方法第一个参数的访问，接下来在运行i期间，
+	由JVM在调用实例方法时，自动向实例方法传入该this参数。所以，在实例方法的局部变量表中，至少会有一个指向当前对象的局部变量。
+	这一点除了在字节码中体现，在Java8的新特性方法引用里也能够体现：
+```java
 class This {
-String two(int i, double d) {
-return "";
-}
+    String two(int i, double d) {
+        return "";
+    }
 }
 
-    interface TwoArgs {
-    	String call2(This athis, int i, double d);
-    }
+interface TwoArgs {
+    String call2(This athis, int i, double d);
+}
 
-    public class MultiUnbound {
-    	public static void main(String[] args) {
-		TwoArgs twoargs = This::two;	// 编译后的字节码中，This的two方法实为3个参数(第一个参数为this)，
-		                                // 与TwoArgs的call2方法签名相同
-		This athis = new This();
-		twoargs.call2(athis, 11, 3.14);
-	}
+public class MultiUnbound {
+    public static void main(String[] args) { 
+        TwoArgs twoargs = This::two;	// 编译后的字节码中，This的two方法实为3个参数(第一个参数为this)，
+                                        // 与TwoArgs的call2方法签名相同
+        This athis = new This();
+        twoargs.call2(athis, 11, 3.14);
     }
-29、有些符号引用(类、方法、字段的全限定名)是在类加载阶段(连接阶段的解析阶段)就会转换为直接引用，
+}
+```    
+28、有些符号引用(类、方法、字段的全限定名)是在类加载阶段(连接阶段的解析阶段)就会转换为直接引用，
 这种转换叫做静态解析；
 另外一些符号引用则是在每次运行期转换为直接引用，这种转换叫做动态链接，这体现为Java的多态性。例如：
+```java
 abstract class Animal {
-abstract public void eat();
+    abstract public void eat();
 }
 class Cat extends Animal {
-@Override
-public void eat() {
-System.out.println("cat eat...");
-}
+    @Override
+    public void eat() {
+        System.out.println("cat eat...");
+    }
 }
 class Dog extends Animal {
-@Override
-public void eat() {
-System.out.println("dog eat...");
-}
-}
-
-    public class Test {
-    	public void test(Animal animal) {
-		animal.eat();
-	}
+    @Override
+    public void eat() {
+        System.out.println("dog eat...");
     }
+}
 
-    animal调用eat方法，在编译期引用的是Animal类的eat方法(符号引用)，只有在运行期才能动态确定animal被赋予的
-    是Animal的哪个子类对象，从而确定是调用哪个子类的eat方法，这时才将eat的符号引用转换为具体子类对象的eat
-    方法的直接引用地址。
-30、字节码里方法调用的5种形态：
-(1)、invokeinterface：调用接口中的方法，实际上是在运行期决定的，决定到底调用实现该接口的哪个对象的特定方法。
-(2)、invokestatic：调用静态方法。
-(3)、invokespecial：调用自己的私有方法、构造方法(<init>)以及父类方法。
-(4)、invokevirtual：调用虚方法，运行期动态查找的过程。
-(5)、invokedynamic：动态调用方法。
-31、静态解析的4种情形：
-(1)、静态方法
-(2)、父类方法
-(3)、构造方法
-(4)、私有方法(无法被重写)
+public class Test {
+    public void test(Animal animal) {
+        animal.eat(); 
+    }
+}
+```
+animal调用eat方法，在编译期引用的是Animal类的eat方法(符号引用)，只有在运行期才能动态确定animal被赋予的
+是Animal的哪个子类对象，从而确定是调用哪个子类的eat方法，这时才将eat的符号引用转换为具体子类对象的eat方法的直接引用地址。
 
-    以上4类方法称作非虚方法，它们是在类加载阶段就可以将符号引用转换为直接引用。
-32、 方法的静态分派(涉及到的概念为方法重载)：
+29、字节码里方法调用的5种形态：
+   * invokeinterface：调用接口中的方法，实际上是在运行期决定的，决定到底调用实现该接口的哪个对象的特定方法。
+   * invokestatic：调用静态方法。
+   * invokespecial：调用自己的私有方法、构造方法(<init>)以及父类方法。
+   * invokevirtual：调用虚方法，运行期动态查找的过程。
+   * invokedynamic：动态调用方法。
+
+30、静态解析的4种情形：
+   * 静态方法
+   * 父类方法
+   * 构造方法
+   * 私有方法(无法被重写)
+
+以上4类方法称作非虚方法，它们是在类加载阶段就可以将符号引用转换为直接引用。
+
+31、 方法的静态分派(涉及到的概念为方法重载)：
+```java
 public class MyTest {
 
-	// 方法重载是一种静态行为，编译器就可以完全确定
+    // 方法重载是一种静态行为，编译器就可以完全确定
 
-	public void test(Grandpa grandpa) {
-		System.out.println("grandpa");
-	}
+    public void test(Grandpa grandpa) {
+        System.out.println("grandpa");
+    }
 
-	public void test(Father father) {
-		System.out.println("father");
-	}
+    public void test(Father father) {
+        System.out.println("father"); 
+    }
 
-	public void test(Son son) {
-		System.out.println("son");
-	}
+    public void test(Son son) {
+        System.out.println("son"); 
+    }
 
-     	public static void main(String[] args) {
-		// g1的静态类型是Grandpa，而g1的实际类型(真正指向的类型)是Father。
-		// 变量的静态类型是不会发生变化的，而变量的实际类型则是可以发生变化的(多态的一种体现)
-		// 实际类型是在运行期才可确定。
-		Grandpa g1 = new Father();
-		Grandpa g2 = new Son();
-		MyTest myTest = new MyTest();
-		myTest.test(g1);	// grandpa，对应的字节码指令为invokevirtual
-		myTest.test(g2);	// grandpa，对应的字节码指令为invokevirtual
-	}
-     }
+    public static void main(String[] args) {
+        // g1的静态类型是Grandpa，而g1的实际类型(真正指向的类型)是Father。
+        // 变量的静态类型是不会发生变化的，而变量的实际类型则是可以发生变化的(多态的一种体现)
+        // 实际类型是在运行期才可确定。
+        Grandpa g1 = new Father();
+        Grandpa g2 = new Son();
+        MyTest myTest = new MyTest();
+        myTest.test(g1);	// grandpa，对应的字节码指令为invokevirtual
+        myTest.test(g2);	// grandpa，对应的字节码指令为invokevirtual 
+    }
+}
 
-     class Grandpa {}
-     class Father extends Grandpa {}
-     class Son extends Father {}
+class Grandpa {}
+class Father extends Grandpa {}
+class Son extends Father {}
+```
+32、实例化对象的字节码指令一般有4个：
+   * new：创建指定类型的对象实例，对其进行默认初始化，并将指向该实例的一个引用压入操作数栈顶
+   * dup：将操作数栈顶的引用复制一份(duplicate)，以备这个引用被invokespecial指令消耗掉之后还能被astore指令使用
+   * invokespecial：调用自身构造器<init>，会传入隐式的this参数，这个this就是new指令压入操作数栈顶的实例引用，它在invokespecial指令执行时会被消耗掉
+   * astore_(n)：也会把操作数栈顶的那个引用消耗掉，保存到指定的局部变量中去，因此在invokespeial指令执行消耗掉操作数栈顶引用之前先dup一份引用
 
-33、实例化对象的字节码指令一般有4个：
-new：创建指定类型的对象实例，对其进行默认初始化，并将指向该实例的一个引用压入操作数栈顶
-dup：将操作数栈顶的引用复制一份(duplicate)，以备这个引用被invokespecial指令消耗掉之后还能被astore指令使用
-invokespecial：调用自身构造器<init>，会传入隐式的this参数，这个this就是new指令压入操作数栈顶的实例引用，
-它在invokespecial指令执行时会被消耗掉
-astore_(n)：也会把操作数栈顶的那个引用消耗掉，保存到指定的局部变量中去，因此在invokespeial指令执行消耗掉
-操作数栈顶引用之前先dup一份引用
-34、方法的动态分派(涉及到的概念为方法重写)：
+33、方法的动态分派(涉及到的概念为方法重写)：
 方法重写与方法重载区别的重要标志是：方法接收者，即调用方法的对象。
+```java
+public class MyTest {
+    public static void main(String[] args) {
+        Fruit apple = new Apple();
+        Fruit orange = new Orange();
 
-    public class MyTest {
-    	public static void main(String[] args) {
-		Fruit apple = new Apple();
-		Fruit orange = new Orange();
-
-		apple.test();	// apple，对应的字节码指令为invokespecial
-		orange.test();	// orange，对应的字节码指令为invokespecial
-	}
+        apple.test();	// apple，对应的字节码指令为invokespecial
+        orange.test();	// orange，对应的字节码指令为invokespecial
     }
+}
 
-    class Fruit {
-    	public void test() {
-		System.out.println("fruit");
-	}
+class Fruit {
+    public void test() {
+        System.out.println("fruit");
     }
+}
 
-    class Apple extends Fruit {
-    	@Override
-	public void test() {
-		System.out.println("apple");
-	}
+class Apple extends Fruit {
+    @Override 
+    public void test() {
+        System.out.println("apple");
     }
+}
 
-    class Orange extends Fruit {
-    	@Override
-	public void test() {
-		System.out.println("orange");
-	}
+class Orange extends Fruit {
+    @Override
+    public void test() {
+        System.out.println("orange");
     }
+}
+```
+注：invokespecial字节码指令的动态查找流程：
+   * 找到操作数栈顶的第一个元素引用所指向的实际类型的对象
+   * 在常量池中查找与所重写的方法签名(即符号引用)相同方法名和描述符的方法引用，若找到了，则执行第(3)步；若没找到，则执行第(4)步
+   * 将invokespecial字节码指令所对应的符号引用转换为所查找到的直接引用
+   * 在父类对象的常量池中查找，重复执行(2)、(3)、(4)，直到找到为止，若没找到则抛异常
 
-    注：invokespecial字节码指令的动态查找流程：
-    	(1)、找到操作数栈顶的第一个元素引用所指向的实际类型的对象
-	(2)、在常量池中查找与所重写的方法签名(即符号引用)相同方法名和描述符的方法引用，
-	     若找到了，则执行第(3)步；若没找到，则执行第(4)步
-	(3)、将invokespecial字节码指令所对应的符号引用转换为所查找到的直接引用
-	(4)、在父类对象的常量池中查找，重复执行(2)、(3)、(4)，直到找到为止，若没找到则抛异常
-35、jdk动态代理的本质是程序在运行过程中动态生成所代理类的字节码，程序通过加载该字节码生成Class对象，而后
+34、jdk动态代理的本质是程序在运行过程中动态生成所代理类的字节码，程序通过加载该字节码生成Class对象，而后
 通过Class对象反射进行实例化最终生成动态代理对象。字节码class文件是否生成到硬盘由系统参数
 sun.misc.ProxyGenerator.saveGeneratedFiles是否为true决定。Object类的hashCode、equals、toString方法也会被
 代理，即动态生成的代理类当中，这3个方法会以和被代理类里的方法同样的代理方法生成形式生成到代理类当中：
